@@ -1,0 +1,67 @@
+cmd
+conda activate py38_wl
+python 网络检测多线程.py
+
+
+1,将  gen_wts.py  和要转的  yolov5s.pt模型   拷贝至yolov5 6.0的目录下
+
+运行命令
+S模型转换
+python gen_wts.py -w yolov5s.pt -o yolov5s.wts
+N模型转换
+python gen_wts.py -w yolov5n.pt -o yolov5n.wts
+
+
+-----打标----
+打标安装
+pip inatsll labelimg
+pip install labelimg -i https://pypi.tuna.tsinghua.edu.cn/simple
+打标工具
+labelimg
+labelimg data/images data/class.txt
+
+
+------训练------
+1.在训练同目录下建一个标签文件夹
+./data/
+    images   图片文件夹
+    labels  标签文件夹
+2.打标直接改为yolo格式
+
+
+3.修改训练配置文件 用coco128.yaml 直接复制一个,重命名为 coco128-bot.yaml
+    ./data/
+        coco128-bot.yaml
+    改一下里面的配置
+    #图片路径 这里要修改一下，图片位置是相对路径
+    train: data/images  #图片路径的相对路径   # train images (relative to 'path') 128 images
+    val: data/images  # 与图片路径是一样的   # val images (relative to 'path') 128 images
+
+    #类别这里要根据自己的标签来改一下   这个是类别和数量
+    # Classes  #类别的数量
+    # class names   # 注意顺序不能错   类别的名称,这两个得按自己打的标签来改  Classes文件在打标签时就会生成一个
+    nc: 2
+    names: ["ren", "guai"]
+
+4.训练-------
+    训练文件是根目录下 train.py
+    注意它下面的参数  parse_opt
+     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
+    default=ROOT / 'weights/yolov5n.pt'  这个参数要改,用什么样的预训练模型,以及它所在的相对路径
+
+    parser.add_argument('--data', type=str, default=ROOT / 'data/coco128bot.yaml', help='dataset.yaml path')  # 根据要求改
+    data/coco128-bot.yaml  这个根据所用的配置来改相对路径 也就是3里的那一步的文件
+
+    最后它会在  runs/train  runs/train/exp/weights下面 生成所有训练的模型 best 最好的模型 last最后的模型
+
+    注意 如果报虚拟内存不足,要改 utils/datasets.py  119行 num_workers=0 或者 num_workers=4 看自己的电脑了
+        或者改 train.py workers  用这里的更好
+    # 早停止忍耐次数 / 100次不更新就停止训练   这个可以改大，不至于很快自动中断，或者直接0 关闭它
+    这个最好是改一下 不然的话如果图片很少的情况下，可能会自动中断
+
+cd D:\YOLO\yolov5-6.1\runs\train
+tensorboard --logdir=exp23
+注意这个exp是当前的训练文件夹
+
+
+labels.cache 这个文件是历史训练数据，有可能创建不了新的数据时这个文件就得删了

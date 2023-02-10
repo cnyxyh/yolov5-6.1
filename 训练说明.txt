@@ -1,0 +1,6 @@
+train.py 主文件
+coco128bot.yaml 配置文件
+
+这两文件训练前删了
+labels.cache.npy
+labels.cache
