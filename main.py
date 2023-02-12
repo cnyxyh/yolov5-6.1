@@ -1,6 +1,12 @@
 import base64
 import json
-from flask import Flask, request
+
+from typing import Union
+
+import uvicorn
+from fastapi import FastAPI
+from pydantic import BaseModel
+
 import cv2
 import numpy as np
 import torch
@@ -29,8 +35,7 @@ model, device, half, stride, names = get_model()  # 调用 load_model import get
 imgsz = check_img_size(IMGSZ, s=stride)  # check image size
 
 
-# 图像识别
-# 不进行梯度处理
+# 图像识别 不进行梯度处理
 @torch.no_grad()
 def pred_img(img0):
     # Padded resize
@@ -50,8 +55,8 @@ def pred_img(img0):
     pred = non_max_suppression(pred, CONF_THRES, IOU_THRES, None, False, max_det=1000)
     det = pred[0]
     im0 = img0.copy()
-    # dict_new = [] #以前的屏蔽了它返回的是一个列表
-    lsxx = {"PaddleOCR": []}
+    dict_new = [] #以前的屏蔽了它返回的是一个列表
+    # lsxx = {"PaddleOCR": []}
     if len(det):
         # Rescale boxes from img_size to im0 size
         det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
@@ -59,43 +64,45 @@ def pred_img(img0):
         for *xyxy, conf, cls in reversed(det):
             c = int(cls)  # integer class
             # 以前的屏蔽了它返回的是一个列表
-            # dict_new.append({"ttxt":names[c],"rect":[int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])],"score":f'{conf:.2f}'})
+            dict_new.append({"ttxt":names[c],"rect":[int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])],"score":f'{conf:.2f}'})
             # print("打印dict_new", dict_new)
-            lsxx["PaddleOCR"].append({"ttxt": names[c], "score": f'{conf:.2f}',
-                                      "rect": [int(xyxy[0]), int(xyxy[1]), int(xyxy[2]) - int(xyxy[0]),
-                                               int(xyxy[3]) - int(xyxy[1])]})
-    # return dict_new  # 以前的屏蔽了它返回的是一个列表
-    return json.dumps(lsxx)  # 返回图像 坐标数组
+            # lsxx["PaddleOCR"].append({"ttxt": names[c], "score": f'{conf:.2f}',
+            #                           "rect": [int(xyxy[0]), int(xyxy[1]), int(xyxy[2]) - int(xyxy[0]),
+            #                                    int(xyxy[3]) - int(xyxy[1])]})
+    return dict_new  # 以前的屏蔽了它返回的是一个列表
+    # return json.dumps(lsxx)  # 返回图像 坐标数组
+    # return lsxx  # 返回图像 坐标数组
+
+
+class Item(BaseModel):
+    name: str
+    description: Union[str, None] = None  # 可选参数
+    price: float
+    tax: Union[float, None] = None  # 可选参数
 
 
 # 传入__name__实例化Flask
-app = Flask(__name__)
+# app = fastapi.FastAPI(__name__)
+app = FastAPI(debug=False)
 
 
-@app.route('/predict/', methods=['POST'])
-def get_prediction():
-    response = request.get_json()
-    data_str = response['image']
-    # print("4444", data_str)
-    imgs = base64.b64decode(data_str)  # 解码
-    # print("长度", len(imgs))
+# @app.route('/predict/', methods=['POST'])
+@app.post('/predict/')
+def create_item(item: Item):
+    imgs = base64.b64decode(item.name)  # 解码
+    print("长度", len(imgs))
     img = cv2.imdecode(np.frombuffer(imgs, np.uint8), cv2.IMREAD_COLOR)  # 二进制数据流转np.ndarray [np.uint8: 8位像素]
     dict_new = pred_img(img)  # 得到img和坐标结果
-    print('打印结果', dict_new)
+    # print('打印结果', dict_new)
     return dict_new
-    # return "我是返回"
-
-
-@app.after_request
-def add_headers(response):
-    # 允许跨域
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    return response
+    # print("收到数据",item.name,item.price )
+    # return json.dumps("我是返回")
 
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
-    # app.run(debug=False, host='0.0.0.0')
-    # app.run(debug=False, host='0.0.0.0', processes=10, threaded=False)
-    # app.run(debug=False, host='127.0.0.1')
+    uvicorn.run(app)
+    # uvicorn.run(app, host="0.0.0.0", port=5000)
+    # uvicorn.run(app, host="188.18.0.5", port=7000)
+
+    # gunicorn -c gunicorn_config.py main:app
+    # gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
